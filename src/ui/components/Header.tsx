@@ -1,3 +1,4 @@
+import React from "react";
 import type { ScanScope } from "../../shared/messages";
 
 interface HeaderProps {

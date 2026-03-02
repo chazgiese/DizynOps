@@ -1,3 +1,4 @@
+import React from "react";
 import type { InstanceInfo } from "../../shared/messages";
 
 interface InstanceRowProps {
