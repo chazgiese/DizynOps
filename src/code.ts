@@ -3,13 +3,16 @@ import type {
   InstanceInfo,
   LibraryGroup,
   ScanScope,
+  VariableCollectionData,
+  VariableData,
+  VariableValue,
 } from "./shared/messages";
 
 declare const __html__: string;
 
 figma.showUI(__html__, { width: 340, height: 520, themeColors: true });
 
-figma.ui.onmessage = (msg: UIMessage) => {
+figma.ui.onmessage = async (msg: UIMessage) => {
   switch (msg.type) {
     case "scan":
       handleScan(msg.scope);
@@ -28,6 +31,9 @@ figma.ui.onmessage = (msg: UIMessage) => {
       break;
     case "reset-library":
       handleResetLibrary(msg.nodeIds);
+      break;
+    case "fetch-variables":
+      await handleFetchVariables();
       break;
   }
 };
@@ -207,4 +213,64 @@ function handleResetLibrary(nodeIds: string[]) {
     success: resetCount > 0,
     resetCount,
   });
+}
+
+async function handleFetchVariables() {
+  const collections =
+    await figma.variables.getLocalVariableCollectionsAsync();
+
+  const result: VariableCollectionData[] = [];
+
+  for (const col of collections) {
+    const variables: VariableData[] = [];
+
+    for (const varId of col.variableIds) {
+      const variable = await figma.variables.getVariableByIdAsync(varId);
+      if (!variable) continue;
+
+      const valuesByMode: Record<string, VariableValue> = {};
+      for (const [modeId, raw] of Object.entries(variable.valuesByMode)) {
+        valuesByMode[modeId] = serializeValue(raw);
+      }
+
+      variables.push({
+        id: variable.id,
+        name: variable.name,
+        resolvedType: variable.resolvedType,
+        valuesByMode,
+      });
+    }
+
+    result.push({
+      id: col.id,
+      name: col.name,
+      modes: col.modes.map((m) => ({ modeId: m.modeId, name: m.name })),
+      variables,
+    });
+  }
+
+  figma.ui.postMessage({ type: "variables-result", collections: result });
+}
+
+function serializeValue(raw: unknown): VariableValue {
+  if (typeof raw === "object" && raw !== null && "type" in raw) {
+    const alias = raw as { type: string; id: string };
+    if (alias.type === "VARIABLE_ALIAS") {
+      return { type: "VARIABLE_ALIAS", id: alias.id };
+    }
+  }
+  if (
+    typeof raw === "object" &&
+    raw !== null &&
+    "r" in raw &&
+    "g" in raw &&
+    "b" in raw
+  ) {
+    const c = raw as { r: number; g: number; b: number; a?: number };
+    return { r: c.r, g: c.g, b: c.b, a: c.a ?? 1 };
+  }
+  if (typeof raw === "number" || typeof raw === "string" || typeof raw === "boolean") {
+    return raw;
+  }
+  return String(raw);
 }

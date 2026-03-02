@@ -18,6 +18,34 @@ export interface LibraryGroup {
   instances: InstanceInfo[];
 }
 
+// --- Variable export types ---
+
+export type VariableValue =
+  | number
+  | string
+  | boolean
+  | { r: number; g: number; b: number; a: number }
+  | { type: "VARIABLE_ALIAS"; id: string };
+
+export interface VariableMode {
+  modeId: string;
+  name: string;
+}
+
+export interface VariableData {
+  id: string;
+  name: string;
+  resolvedType: string;
+  valuesByMode: Record<string, VariableValue>;
+}
+
+export interface VariableCollectionData {
+  id: string;
+  name: string;
+  modes: VariableMode[];
+  variables: VariableData[];
+}
+
 // --- UI -> Sandbox ---
 
 export interface ScanMessage {
@@ -53,13 +81,18 @@ export interface ResetLibraryMessage {
   nodeIds: string[];
 }
 
+export interface FetchVariablesMessage {
+  type: "fetch-variables";
+}
+
 export type UIMessage =
   | ScanMessage
   | NavigateMessage
   | DetachMessage
   | DetachLibraryMessage
   | ResetMessage
-  | ResetLibraryMessage;
+  | ResetLibraryMessage
+  | FetchVariablesMessage;
 
 // --- Sandbox -> UI ---
 
@@ -85,8 +118,14 @@ export interface ResetResultMessage {
   resetCount: number;
 }
 
+export interface VariablesResultMessage {
+  type: "variables-result";
+  collections: VariableCollectionData[];
+}
+
 export type SandboxMessage =
   | ScanResultMessage
   | ScanProgressMessage
   | DetachResultMessage
-  | ResetResultMessage;
+  | ResetResultMessage
+  | VariablesResultMessage;

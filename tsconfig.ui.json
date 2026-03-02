@@ -9,5 +9,5 @@
     "esModuleInterop": true,
     "isolatedModules": true
   },
-  "include": ["src/ui/**/*.ts", "src/ui/**/*.tsx", "src/shared/**/*.ts"]
+  "include": ["src/ui/**/*.ts", "src/ui/**/*.tsx", "src/shared/**/*.ts", "src/export/**/*.ts", "src/export/**/*.tsx"]
 }
