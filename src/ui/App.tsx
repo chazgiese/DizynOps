@@ -151,7 +151,7 @@ export function App() {
                   <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
                 <p className="text-sm">
-                  Scan to find component instances in your{" "}
+                  Scan to find component instances from other libraries in your{" "}
                   {scope === "page" ? "current page" : "file"}.
                 </p>
               </div>
@@ -175,11 +175,11 @@ export function App() {
                 <div className="px-3 py-2 text-xs text-[var(--figma-color-text-secondary,#999)]">
                   {totalInstances} instance{totalInstances === 1 ? "" : "s"}{" "}
                   across {libraries.length}{" "}
-                  {libraries.length === 1 ? "library" : "libraries"}
+                  {libraries.length === 1 ? "component" : "components"}
                 </div>
                 {libraries.map((lib) => (
                   <LibraryGroupCard
-                    key={lib.libraryKey}
+                    key={`${lib.libraryKey}-${lib.componentName}`}
                     group={lib}
                     onNavigate={handleNavigate}
                     onReset={handleReset}

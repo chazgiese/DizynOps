@@ -14,6 +14,7 @@ export interface InstanceInfo {
 export interface LibraryGroup {
   libraryKey: string;
   libraryName: string;
+  componentName: string;
   isRemote: boolean;
   instances: InstanceInfo[];
 }

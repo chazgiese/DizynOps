@@ -55,6 +55,7 @@ function handleScan(scope: ScanScope) {
       const instance = node as InstanceNode;
       const mainComp = instance.mainComponent;
       if (!mainComp) continue;
+      if (!mainComp.remote) continue;
 
       const lib = deriveLibraryInfo(mainComp);
 
@@ -69,15 +70,18 @@ function handleScan(scope: ScanScope) {
         isRemote: mainComp.remote,
       };
 
-      let group = libraryMap.get(lib.key);
+      const componentName = info.componentName;
+      const groupKey = lib.key + "\t" + componentName;
+      let group = libraryMap.get(groupKey);
       if (!group) {
         group = {
           libraryKey: lib.key,
           libraryName: lib.name,
+          componentName,
           isRemote: lib.isRemote,
           instances: [],
         };
-        libraryMap.set(lib.key, group);
+        libraryMap.set(groupKey, group);
       }
       group.instances.push(info);
     }
@@ -85,7 +89,8 @@ function handleScan(scope: ScanScope) {
 
   const libraries = Array.from(libraryMap.values()).sort((a, b) => {
     if (a.isRemote !== b.isRemote) return a.isRemote ? -1 : 1;
-    return a.libraryName.localeCompare(b.libraryName);
+    if (a.libraryKey !== b.libraryKey) return a.libraryKey.localeCompare(b.libraryKey);
+    return a.componentName.localeCompare(b.componentName);
   });
 
   figma.ui.postMessage({ type: "scan-result", libraries });
@@ -96,10 +101,6 @@ function deriveLibraryInfo(component: ComponentNode): {
   name: string;
   isRemote: boolean;
 } {
-  if (!component.remote) {
-    return { key: "local", name: "Local Components", isRemote: false };
-  }
-
   const displayName = getComponentDisplayName(component);
   const slashIdx = displayName.indexOf("/");
   if (slashIdx > 0) {
@@ -108,8 +109,8 @@ function deriveLibraryInfo(component: ComponentNode): {
   }
 
   return {
-    key: `remote:${component.key}`,
-    name: displayName,
+    key: "remote",
+    name: "Remote",
     isRemote: true,
   };
 }

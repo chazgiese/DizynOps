@@ -50,6 +50,9 @@ export function LibraryGroupCard({
 
         <div className="flex-1 text-left min-w-0">
           <span className="text-xs font-medium truncate block">
+            {group.componentName}
+          </span>
+          <span className="text-[10px] text-[var(--figma-color-text-tertiary,#b3b3b3)] truncate block">
             {group.libraryName}
           </span>
         </div>
