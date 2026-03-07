@@ -88,8 +88,8 @@ export function normalizePathForCollection(
 
 /**
  * Normalizes a text style name into a CSS utility class name.
- * Same path rules as normalizePath, prefixed with `.text-`.
- * e.g. "Body/MD-Strong" → ".text-body-md-strong"
+ * Same path rules as normalizePath, prefixed with `text-`.
+ * e.g. "Body/MD-Strong" → "text-body-md-strong"
  */
 export function normalizeTextStyleName(name: string): string {
   const segments = name
@@ -97,5 +97,5 @@ export function normalizeTextStyleName(name: string): string {
     .filter((s) => s !== "-")
     .map((s) => s.replace(/\s+/g, "-").toLowerCase());
 
-  return `.text-${segments.join("-")}`;
+  return `text-${segments.join("-")}`;
 }

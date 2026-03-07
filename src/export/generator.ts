@@ -18,6 +18,9 @@ export type ModeRole = "light" | "dark" | "ignore";
 // Collections always included in the Arc export
 const INCLUDED_COLLECTIONS = new Set(["Config", "Core – Color", "Core – Typography"]);
 
+/** Prefix for typography @utility class names to avoid conflicts with Tailwind built-ins. */
+const TYPOGRAPHY_UTILITY_PREFIX = "arc";
+
 export interface GeneratorInput {
   collections: VariableCollectionData[];
   /** modeId → role */
@@ -73,7 +76,8 @@ export function generateCss(input: GeneratorInput): string {
   }
 
   const themeLines: string[] = [];
-  const rootParts: string[] = [];
+  const unlayeredRootParts: string[] = []; // single-mode: Config, Core – Typography
+  const rootParts: string[] = [];          // multi-mode: Core – Color
   const darkParts: string[] = [];
 
   for (const col of collections) {
@@ -160,14 +164,18 @@ export function generateCss(input: GeneratorInput): string {
       }
     }
 
-    rootParts.push(colRootLines.join("\n"));
+    if (isMultiMode) {
+      rootParts.push(colRootLines.join("\n"));
+    } else {
+      unlayeredRootParts.push(colRootLines.join("\n"));
+    }
 
     if (colDarkLines.length > 0) {
       darkParts.push(colDarkLines.join("\n"));
     }
   }
 
-  // Build @layer utilities for text styles
+  // Build @utility blocks for text styles
   const utilityLines: string[] = [];
   if (textStyles.length > 0) {
     for (const ts of textStyles) {
@@ -194,13 +202,13 @@ export function generateCss(input: GeneratorInput): string {
         : formatLetterSpacing(Number(ts.letterSpacing.rawValue));
 
       utilityLines.push(
-        `  ${className} {\n` +
-        `    font-family: ${fontFamilyVal};\n` +
-        `    font-size: ${fontSizeVal};\n` +
-        `    line-height: ${lineHeightVal};\n` +
-        `    font-weight: ${fontWeightVal};\n` +
-        `    letter-spacing: ${letterSpacingVal};\n` +
-        `  }`,
+        `@utility ${TYPOGRAPHY_UTILITY_PREFIX}-${className} {\n` +
+        `  font-family: ${fontFamilyVal};\n` +
+        `  font-size: ${fontSizeVal};\n` +
+        `  line-height: ${lineHeightVal};\n` +
+        `  font-weight: ${fontWeightVal};\n` +
+        `  letter-spacing: ${letterSpacingVal};\n` +
+        `}`,
       );
     }
   }
@@ -211,6 +219,12 @@ export function generateCss(input: GeneratorInput): string {
     sections.push(`@theme inline {\n${themeLines.join("\n")}\n}`);
   }
 
+  // Unlayered :root for constant tokens (Config, Core – Typography)
+  if (unlayeredRootParts.length > 0) {
+    sections.push(`:root {\n${unlayeredRootParts.join("\n\n")}\n}`);
+  }
+
+  // @layer base for semantic/themeable tokens (Core – Color)
   const layerBaseParts: string[] = [];
 
   if (rootParts.length > 0) {
@@ -226,7 +240,7 @@ export function generateCss(input: GeneratorInput): string {
   }
 
   if (utilityLines.length > 0) {
-    sections.push(`@layer utilities {\n${utilityLines.join("\n\n")}\n}`);
+    sections.push(utilityLines.join("\n\n"));
   }
 
   return sections.join("\n\n") + "\n";
