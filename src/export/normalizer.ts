@@ -1,41 +1,22 @@
 /**
- * Checks whether a collection name starts with "Primitives" (case-insensitive).
- */
-export function isPrimitiveCollection(collectionName: string): boolean {
-  return collectionName.toLowerCase().startsWith("primitives");
-}
-
-/**
  * Normalizes a Figma variable path into a CSS custom property name.
  *
  * Rules:
  * - Split on `/`
- * - For Primitives: drop the first segment (category label like "Color")
- * - For Base collections: keep all segments as-is
- * - Drop any segment that is exactly `-`
+ * - Drop any segment that is exactly `-` (signals the default variant in Figma)
  * - Replace spaces with hyphens, lowercase everything
  * - Join with `-`, prepend `--` (with optional prefix)
+ *
+ * The collection name is never part of the CSS variable name.
  */
-export function normalizePath(
-  name: string,
-  collectionName: string,
-  prefix?: string,
-): string {
-  let segments = name.split("/");
-
-  if (isPrimitiveCollection(collectionName)) {
-    segments = segments.slice(1);
-  }
-
-  segments = segments
+export function normalizePath(name: string, prefix?: string): string {
+  const segments = name
+    .split("/")
     .filter((s) => s !== "-")
     .map((s) => s.replace(/\s+/g, "-").toLowerCase());
 
   const body = segments.join("-");
-  if (prefix) {
-    return `--${prefix}-${body}`;
-  }
-  return `--${body}`;
+  return prefix ? `--${prefix}-${body}` : `--${body}`;
 }
 
 /**
@@ -67,4 +48,54 @@ export function rgbaToHex(color: {
     return `${hex}${toHex(color.a)}`;
   }
   return hex;
+}
+
+/**
+ * Converts a pixel value to rem, assuming a 16px root font size.
+ * Strips trailing zeros from the decimal.
+ */
+export function pxToRem(px: number, base = 16): string {
+  return `${parseFloat((px / base).toFixed(4))}rem`;
+}
+
+/**
+ * Formats a letter spacing float value: rounds to 2 decimal places and
+ * appends px. No rem conversion — letter spacing is always output in px.
+ */
+export function formatLetterSpacing(value: number): string {
+  return `${parseFloat(value.toFixed(2))}px`;
+}
+
+/**
+ * Normalizes a variable path to a CSS custom property name, applying
+ * per-collection rules.
+ *
+ * Config collection: drops the first path segment (e.g. "Color", "Typography"),
+ * which is a redundant category label in that collection's naming scheme.
+ * All other collections: uses the full path as-is.
+ */
+export function normalizePathForCollection(
+  name: string,
+  collectionName: string,
+  prefix?: string,
+): string {
+  if (collectionName === "Config") {
+    const stripped = name.split("/").slice(1).join("/");
+    return normalizePath(stripped, prefix);
+  }
+  return normalizePath(name, prefix);
+}
+
+/**
+ * Normalizes a text style name into a CSS utility class name.
+ * Same path rules as normalizePath, prefixed with `.text-`.
+ * e.g. "Body/MD-Strong" → ".text-body-md-strong"
+ */
+export function normalizeTextStyleName(name: string): string {
+  const segments = name
+    .split("/")
+    .filter((s) => s !== "-")
+    .map((s) => s.replace(/\s+/g, "-").toLowerCase());
+
+  return `.text-${segments.join("-")}`;
 }

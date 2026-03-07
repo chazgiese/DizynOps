@@ -2,21 +2,15 @@ import { useState, useCallback, useMemo, useEffect } from "react";
 import type {
   SandboxMessage,
   VariableCollectionData,
+  TextStyleData,
 } from "../shared/messages";
 import {
   useFigmaMessages,
   postToFigma,
 } from "../ui/hooks/useFigmaMessages";
-import { getGroup } from "./normalizer";
 import { generateCss, type ModeRole } from "./generator";
 
-function isPrimitiveCollection(name: string): boolean {
-  return name.toLowerCase().startsWith("primitives");
-}
-
-function isBaseCollection(name: string): boolean {
-  return /^base\s*[–—-]/i.test(name);
-}
+const INCLUDED_COLLECTIONS = new Set(["Config", "Core – Color", "Core – Typography"]);
 
 function autoDetectRole(modeName: string): ModeRole | undefined {
   const lower = modeName.toLowerCase();
@@ -25,24 +19,10 @@ function autoDetectRole(modeName: string): ModeRole | undefined {
   return undefined;
 }
 
-function collectGroups(col: VariableCollectionData): string[] {
-  const seen = new Set<string>();
-  for (const v of col.variables) {
-    seen.add(getGroup(v.name));
-  }
-  return Array.from(seen).sort();
-}
-
 export function ExportView() {
-  const [collections, setCollections] = useState<
-    VariableCollectionData[] | null
-  >(null);
-  const [selectedGroups, setSelectedGroups] = useState<
-    Record<string, Set<string>>
-  >({});
-  const [modeRoles, setModeRoles] = useState<
-    Record<string, ModeRole | undefined>
-  >({});
+  const [collections, setCollections] = useState<VariableCollectionData[] | null>(null);
+  const [textStyles, setTextStyles] = useState<TextStyleData[]>([]);
+  const [modeRoles, setModeRoles] = useState<Record<string, ModeRole | undefined>>({});
   const [prefix, setPrefix] = useState("");
 
   useEffect(() => {
@@ -54,14 +34,13 @@ export function ExportView() {
       if (msg.type !== "variables-result") return;
 
       setCollections(msg.collections);
+      setTextStyles(msg.textStyles ?? []);
 
-      const groups: Record<string, Set<string>> = {};
       const roles: Record<string, ModeRole | undefined> = {};
 
       for (const col of msg.collections) {
-        groups[col.id] = new Set(collectGroups(col));
-
-        if (isBaseCollection(col.name)) {
+        if (!INCLUDED_COLLECTIONS.has(col.name)) continue;
+        if (col.modes.length > 1) {
           for (const mode of col.modes) {
             if (!(mode.modeId in roles)) {
               roles[mode.modeId] = autoDetectRole(mode.name);
@@ -70,34 +49,8 @@ export function ExportView() {
         }
       }
 
-      setSelectedGroups(groups);
       setModeRoles(roles);
     }, []),
-  );
-
-  const toggleGroup = useCallback(
-    (collectionId: string, group: string) => {
-      setSelectedGroups((prev) => {
-        const copy = { ...prev };
-        const set = new Set(copy[collectionId] ?? []);
-        if (set.has(group)) set.delete(group);
-        else set.add(group);
-        copy[collectionId] = set;
-        return copy;
-      });
-    },
-    [],
-  );
-
-  const toggleAllGroups = useCallback(
-    (collectionId: string, allGroups: string[], checked: boolean) => {
-      setSelectedGroups((prev) => {
-        const copy = { ...prev };
-        copy[collectionId] = checked ? new Set(allGroups) : new Set();
-        return copy;
-      });
-    },
-    [],
   );
 
   const setRole = useCallback(
@@ -111,19 +64,19 @@ export function ExportView() {
     if (!collections) return "";
     return generateCss({
       collections,
-      selectedGroups,
       modeRoles: modeRoles as Record<string, ModeRole>,
       prefix: prefix.trim(),
+      textStyles,
     });
-  }, [collections, selectedGroups, modeRoles, prefix]);
+  }, [collections, modeRoles, prefix, textStyles]);
 
-  const baseModes = useMemo(() => {
+  // Collect unique modes from all multi-mode included collections
+  const pendingModes = useMemo(() => {
     if (!collections) return [];
     const seen = new Map<string, string>();
     for (const col of collections) {
-      if (!isBaseCollection(col.name)) continue;
-      const hasSelectedGroup = [...(selectedGroups[col.id] ?? [])].length > 0;
-      if (!hasSelectedGroup) continue;
+      if (!INCLUDED_COLLECTIONS.has(col.name)) continue;
+      if (col.modes.length <= 1) continue;
       for (const mode of col.modes) {
         if (!seen.has(mode.modeId)) {
           seen.set(mode.modeId, mode.name);
@@ -131,17 +84,14 @@ export function ExportView() {
       }
     }
     return Array.from(seen, ([id, name]) => ({ id, name }));
-  }, [collections, selectedGroups]);
+  }, [collections]);
 
-  const hasAnyGroup = useMemo(() => {
-    return Object.values(selectedGroups).some((s) => s.size > 0);
-  }, [selectedGroups]);
+  const allModesAssigned = useMemo(
+    () => pendingModes.every((m) => modeRoles[m.id] !== undefined),
+    [pendingModes, modeRoles],
+  );
 
-  const allModesAssigned = useMemo(() => {
-    return baseModes.every((m) => modeRoles[m.id] !== undefined);
-  }, [baseModes, modeRoles]);
-
-  const canExport = hasAnyGroup && allModesAssigned;
+  const canExport = allModesAssigned;
 
   const handleExport = useCallback(() => {
     const blob = new Blob([cssOutput], { type: "text/css" });
@@ -175,59 +125,14 @@ export function ExportView() {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <div className="flex-1 overflow-y-auto px-3 pt-3 pb-2 space-y-3">
-        {/* Collection / group selector */}
-        {collections.map((col) => {
-          const groups = collectGroups(col);
-          const selected = selectedGroups[col.id] ?? new Set();
-          const allChecked = groups.length > 0 && groups.every((g) => selected.has(g));
-          const someChecked = groups.some((g) => selected.has(g));
-
-          return (
-            <details key={col.id} open>
-              <summary className="cursor-pointer text-xs font-semibold py-1 select-none flex items-center gap-1.5">
-                <input
-                  type="checkbox"
-                  checked={allChecked}
-                  ref={(el) => {
-                    if (el) el.indeterminate = someChecked && !allChecked;
-                  }}
-                  onChange={(e) =>
-                    toggleAllGroups(col.id, groups, e.target.checked)
-                  }
-                  className="accent-[var(--figma-color-bg-brand,#0d99ff)]"
-                  onClick={(e) => e.stopPropagation()}
-                />
-                <span>{col.name}</span>
-                <span className="font-normal text-[var(--figma-color-text-secondary,#999)]">
-                  ({col.variables.length})
-                </span>
-              </summary>
-              <div className="pl-5 py-1 space-y-0.5">
-                {groups.map((g) => (
-                  <label
-                    key={g}
-                    className="flex items-center gap-1.5 text-xs py-0.5 cursor-pointer"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selected.has(g)}
-                      onChange={() => toggleGroup(col.id, g)}
-                      className="accent-[var(--figma-color-bg-brand,#0d99ff)]"
-                    />
-                    {g || "(root)"}
-                  </label>
-                ))}
-              </div>
-            </details>
-          );
-        })}
-
-        {/* Mode labeler */}
-        {baseModes.length > 0 && (
-          <div className="border-t border-[var(--figma-color-border,#e5e5e5)] pt-3">
-            <h3 className="text-xs font-semibold mb-2">Mode Roles</h3>
+        {/* Mode role assignments */}
+        {pendingModes.length > 0 && (
+          <div>
+            <p className="text-[10px] text-[var(--figma-color-text-secondary,#999)] font-medium uppercase tracking-wide mb-1.5">
+              Modes
+            </p>
             <div className="space-y-1.5">
-              {baseModes.map((mode) => (
+              {pendingModes.map((mode) => (
                 <div key={mode.id} className="flex items-center gap-2">
                   <span className="text-xs flex-1 truncate">{mode.name}</span>
                   <select
@@ -252,7 +157,7 @@ export function ExportView() {
         )}
 
         {/* Prefix input */}
-        <div className="border-t border-[var(--figma-color-border,#e5e5e5)] pt-3">
+        <div className={pendingModes.length > 0 ? "border-t border-[var(--figma-color-border,#e5e5e5)] pt-3" : ""}>
           <label className="text-xs font-semibold block mb-1">
             Variable prefix
           </label>

@@ -6,6 +6,8 @@ import type {
   VariableCollectionData,
   VariableData,
   VariableValue,
+  TextStyleData,
+  TextStylePropertyData,
 } from "./shared/messages";
 
 declare const __html__: string;
@@ -249,7 +251,35 @@ async function handleFetchVariables() {
     });
   }
 
-  figma.ui.postMessage({ type: "variables-result", collections: result });
+  const localTextStyles = await figma.getLocalTextStylesAsync();
+  const textStyles: TextStyleData[] = localTextStyles.map((ts) => {
+    const bv = ts.boundVariables ?? {};
+
+    function prop(
+      variableBinding: { type: "VARIABLE_ALIAS"; id: string } | undefined,
+      raw: string | number,
+    ): TextStylePropertyData {
+      return {
+        variableId: variableBinding?.id ?? null,
+        rawValue: raw,
+      };
+    }
+
+    const lineHeightRaw =
+      ts.lineHeight.unit === "AUTO" ? 0 : ts.lineHeight.value;
+
+    return {
+      id: ts.id,
+      name: ts.name,
+      fontFamily: prop(bv.fontFamily as { type: "VARIABLE_ALIAS"; id: string } | undefined, ts.fontName.family),
+      fontSize: prop(bv.fontSize as { type: "VARIABLE_ALIAS"; id: string } | undefined, ts.fontSize),
+      lineHeight: prop(bv.lineHeight as { type: "VARIABLE_ALIAS"; id: string } | undefined, lineHeightRaw),
+      fontWeight: prop(bv.fontWeight as { type: "VARIABLE_ALIAS"; id: string } | undefined, ts.fontName.style),
+      letterSpacing: prop(bv.letterSpacing as { type: "VARIABLE_ALIAS"; id: string } | undefined, ts.letterSpacing.value),
+    };
+  });
+
+  figma.ui.postMessage({ type: "variables-result", collections: result, textStyles });
 }
 
 function serializeValue(raw: unknown): VariableValue {

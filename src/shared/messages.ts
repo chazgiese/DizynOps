@@ -20,6 +20,23 @@ export interface LibraryGroup {
 
 // --- Variable export types ---
 
+export interface TextStylePropertyData {
+  variableId: string | null;
+  rawValue: string | number;
+}
+
+export interface TextStyleData {
+  id: string;
+  name: string;
+  fontFamily: TextStylePropertyData;
+  fontSize: TextStylePropertyData;
+  lineHeight: TextStylePropertyData;
+  fontWeight: TextStylePropertyData;
+  letterSpacing: TextStylePropertyData;
+}
+
+
+
 export type VariableValue =
   | number
   | string
@@ -121,6 +138,7 @@ export interface ResetResultMessage {
 export interface VariablesResultMessage {
   type: "variables-result";
   collections: VariableCollectionData[];
+  textStyles: TextStyleData[];
 }
 
 export type SandboxMessage =
