@@ -15,8 +15,16 @@ export interface LibraryGroup {
   libraryKey: string;
   libraryName: string;
   componentName: string;
+  componentSetKey: string;
   isRemote: boolean;
   instances: InstanceInfo[];
+}
+
+export interface RemoteLibraryGroup {
+  libraryKey: string;
+  libraryName: string;
+  isRemote: boolean;
+  components: LibraryGroup[];
 }
 
 // --- Variable export types ---
@@ -103,6 +111,24 @@ export interface FetchVariablesMessage {
   type: "fetch-variables";
 }
 
+export interface LoadPatMessage {
+  type: "load-pat";
+}
+
+export interface SavePatMessage {
+  type: "save-pat";
+  pat: string;
+}
+
+export interface ClearPatMessage {
+  type: "clear-pat";
+}
+
+export interface OpenUrlMessage {
+  type: "open-url";
+  url: string;
+}
+
 export type UIMessage =
   | ScanMessage
   | NavigateMessage
@@ -110,13 +136,17 @@ export type UIMessage =
   | DetachLibraryMessage
   | ResetMessage
   | ResetLibraryMessage
-  | FetchVariablesMessage;
+  | FetchVariablesMessage
+  | LoadPatMessage
+  | SavePatMessage
+  | ClearPatMessage
+  | OpenUrlMessage;
 
 // --- Sandbox -> UI ---
 
 export interface ScanResultMessage {
   type: "scan-result";
-  libraries: LibraryGroup[];
+  libraries: RemoteLibraryGroup[];
 }
 
 export interface ScanProgressMessage {
@@ -142,9 +172,15 @@ export interface VariablesResultMessage {
   textStyles: TextStyleData[];
 }
 
+export interface PatLoadedMessage {
+  type: "pat-loaded";
+  pat: string;
+}
+
 export type SandboxMessage =
   | ScanResultMessage
   | ScanProgressMessage
   | DetachResultMessage
   | ResetResultMessage
-  | VariablesResultMessage;
+  | VariablesResultMessage
+  | PatLoadedMessage;

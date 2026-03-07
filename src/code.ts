@@ -2,6 +2,7 @@ import type {
   UIMessage,
   InstanceInfo,
   LibraryGroup,
+  RemoteLibraryGroup,
   ScanScope,
   VariableCollectionData,
   VariableData,
@@ -37,6 +38,20 @@ figma.ui.onmessage = async (msg: UIMessage) => {
     case "fetch-variables":
       await handleFetchVariables();
       break;
+    case "load-pat": {
+      const stored = await figma.clientStorage.getAsync("figma-pat");
+      figma.ui.postMessage({ type: "pat-loaded", pat: stored ?? "" });
+      break;
+    }
+    case "save-pat":
+      await figma.clientStorage.setAsync("figma-pat", msg.pat);
+      break;
+    case "clear-pat":
+      await figma.clientStorage.deleteAsync("figma-pat");
+      break;
+    case "open-url":
+      figma.openExternal(msg.url);
+      break;
   }
 };
 
@@ -46,7 +61,10 @@ function handleScan(scope: ScanScope) {
   const pages: readonly PageNode[] =
     scope === "page" ? [figma.currentPage] : figma.root.children;
 
-  const libraryMap = new Map<string, LibraryGroup>();
+  const libraryMap = new Map<
+    string,
+    { libraryName: string; isRemote: boolean; componentMap: Map<string, LibraryGroup> }
+  >();
 
   for (const page of pages) {
     const instances = page.findAllWithCriteria({ types: ["INSTANCE"] });
@@ -71,29 +89,78 @@ function handleScan(scope: ScanScope) {
       };
 
       const componentName = info.componentName;
-      const groupKey = lib.key + "\t" + componentName;
-      let group = libraryMap.get(groupKey);
+
+      // Use the COMPONENT_SET key (groups all variants together) or the
+      // component's own key for standalone components. This prevents components
+      // with the same display name from different libraries being merged.
+      const componentSetKey =
+        mainComp.parent?.type === "COMPONENT_SET"
+          ? ((mainComp.parent as ComponentSetNode).key || mainComp.key)
+          : mainComp.key;
+      const groupKey = componentSetKey;
+
+      // Strip the library name prefix from the display name so the card title
+      // doesn't repeat what the sticky section header already shows.
+      const libPrefix = lib.name + "/";
+      const displayComponentName = componentName.startsWith(libPrefix)
+        ? componentName.substring(libPrefix.length)
+        : componentName;
+
+      let libEntry = libraryMap.get(lib.key);
+      if (!libEntry) {
+        libEntry = {
+          libraryName: lib.name,
+          isRemote: lib.isRemote,
+          componentMap: new Map(),
+        };
+        libraryMap.set(lib.key, libEntry);
+      }
+
+      let group = libEntry.componentMap.get(groupKey);
       if (!group) {
         group = {
           libraryKey: lib.key,
           libraryName: lib.name,
-          componentName,
+          componentName: displayComponentName,
+          componentSetKey,
           isRemote: lib.isRemote,
           instances: [],
         };
-        libraryMap.set(groupKey, group);
+        libEntry.componentMap.set(groupKey, group);
       }
       group.instances.push(info);
     }
   }
 
-  const libraries = Array.from(libraryMap.values()).sort((a, b) => {
-    if (a.isRemote !== b.isRemote) return a.isRemote ? -1 : 1;
-    if (a.libraryKey !== b.libraryKey) return a.libraryKey.localeCompare(b.libraryKey);
-    return a.componentName.localeCompare(b.componentName);
-  });
+  const libraries: RemoteLibraryGroup[] = Array.from(libraryMap.entries())
+    .sort(([keyA, a], [keyB, b]) => {
+      if (a.isRemote !== b.isRemote) return a.isRemote ? -1 : 1;
+      return keyA.localeCompare(keyB);
+    })
+    .map(([libraryKey, entry]) => ({
+      libraryKey,
+      libraryName: entry.libraryName,
+      isRemote: entry.isRemote,
+      components: Array.from(entry.componentMap.values()).sort((a, b) =>
+        a.componentName.localeCompare(b.componentName),
+      ),
+    }));
 
   figma.ui.postMessage({ type: "scan-result", libraries });
+}
+
+function getDocumentName(component: ComponentNode): string | null {
+  // Walk up the parent chain to the root DocumentNode. For remote components,
+  // this root belongs to the source library file (not figma.root), so its
+  // .name is the exact library file name — no REST API call required.
+  let node: BaseNode | null = component;
+  while (node.parent !== null) {
+    node = node.parent;
+  }
+  if (node.type === "DOCUMENT" && node !== figma.root) {
+    return node.name;
+  }
+  return null;
 }
 
 function deriveLibraryInfo(component: ComponentNode): {
@@ -101,6 +168,15 @@ function deriveLibraryInfo(component: ComponentNode): {
   name: string;
   isRemote: boolean;
 } {
+  // Primary: get the real library file name by walking up to the source
+  // document root. Works for any remote component without any API token.
+  const documentName = getDocumentName(component);
+  if (documentName) {
+    return { key: `remote:${documentName}`, name: documentName, isRemote: true };
+  }
+
+  // Fallback: extract the prefix before the first "/" in the component's
+  // display name (e.g. "Foundation/Button" → "Foundation").
   const displayName = getComponentDisplayName(component);
   const slashIdx = displayName.indexOf("/");
   if (slashIdx > 0) {

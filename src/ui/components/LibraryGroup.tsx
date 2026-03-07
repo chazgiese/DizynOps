@@ -52,9 +52,6 @@ export function LibraryGroupCard({
           <span className="text-xs font-medium truncate block">
             {group.componentName}
           </span>
-          <span className="text-[10px] text-[var(--figma-color-text-tertiary,#b3b3b3)] truncate block">
-            {group.libraryName}
-          </span>
         </div>
 
         <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--figma-color-bg-secondary,#f0f0f0)] text-[var(--figma-color-text-secondary,#999)] shrink-0">
