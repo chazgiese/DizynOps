@@ -249,7 +249,7 @@ export function generateCss(input: GeneratorInput): string {
   sections.push(
     `@layer base {\n` +
       `  * {\n    @apply border-border;\n  }\n` +
-      `  body {\n    @apply bg-bg-surface text-text;\n  }\n` +
+      `  body {\n    @apply bg-bg-surface text-text antialiased;\n  }\n` +
       `}`,
   );
 
