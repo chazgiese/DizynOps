@@ -21,6 +21,13 @@ const INCLUDED_COLLECTIONS = new Set(["Config", "Core – Color", "Core – Typo
 /** Prefix for typography @utility class names to avoid conflicts with Tailwind built-ins. */
 const TYPOGRAPHY_UTILITY_PREFIX = "arc";
 
+/** Header for exported global.css: imports and dark variant. */
+const EXPORT_HEADER = `@import './fonts.css';
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));`;
+
 export interface GeneratorInput {
   collections: VariableCollectionData[];
   /** modeId → role */
@@ -124,16 +131,12 @@ export function generateCss(input: GeneratorInput): string {
     if (byGroup.size === 0) continue;
 
     // Build :root lines for this collection
-    const colRootLines: string[] = [`    /* ${col.name} */`];
+    const colRootLines: string[] = [];
     // Build .dark lines for this collection
     const colDarkLines: string[] = [];
 
     for (const grp of groupOrder) {
       const vars = byGroup.get(grp)!;
-
-      if (grp) {
-        colRootLines.push(`    /* ${grp} */`);
-      }
 
       for (const v of vars) {
         const cssName = idToCssName.get(v.id)!;
@@ -213,7 +216,7 @@ export function generateCss(input: GeneratorInput): string {
     }
   }
 
-  const sections: string[] = [];
+  const sections: string[] = [EXPORT_HEADER];
 
   if (themeLines.length > 0) {
     sections.push(`@theme inline {\n${themeLines.join("\n")}\n}`);
@@ -242,6 +245,13 @@ export function generateCss(input: GeneratorInput): string {
   if (utilityLines.length > 0) {
     sections.push(utilityLines.join("\n\n"));
   }
+
+  sections.push(
+    `@layer base {\n` +
+      `  * {\n    @apply border-border;\n  }\n` +
+      `  body {\n    @apply bg-bg-surface text-text;\n  }\n` +
+      `}`,
+  );
 
   return sections.join("\n\n") + "\n";
 }
