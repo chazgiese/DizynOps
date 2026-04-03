@@ -18,8 +18,8 @@ export type ModeRole = "light" | "dark" | "ignore";
 // Collections always included in the Arc export
 const INCLUDED_COLLECTIONS = new Set(["Config", "Core – Color", "Core – Typography"]);
 
-/** Prefix for typography @utility class names to avoid conflicts with Tailwind built-ins. */
-const TYPOGRAPHY_UTILITY_PREFIX = "arc";
+/** Prefix for typography @utility class names to avoid conflicts with Tailwind built-ins. "st" = "Stera Typography" */
+const TYPOGRAPHY_UTILITY_PREFIX = "st";
 
 /** Header for exported global.css: imports and dark variant. */
 const EXPORT_HEADER = `@import './fonts.css';
